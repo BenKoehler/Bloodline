@@ -746,7 +746,6 @@ bool ImporterScientific::read_landmark_measuring_planes(std::string_view filepat
      * [numSamples] x [double] : samples_cardiac_output
      */
 
-    std::uint32_t ui32temp = 0;
     std::uint8_t ui8temp = 0;
     double dtemp = 0;
 
@@ -820,7 +819,7 @@ bool ImporterScientific::read_landmark_measuring_planes(std::string_view filepat
                 for (unsigned int t = 0; t < gridsize[2] && cnt < NUM_DEMO; ++t, ++cnt)
                 {
                     const unsigned int off = x * gridsize[1] * gridsize[2] * 3 + y * gridsize[2] * 3 + t * 3;
-                    _res << "\t\t\t- flow vector " << cnt << ": [" << dbuffer[0] << ", " << dbuffer[1] << ", " << dbuffer[2] << "]" << std::endl;
+                    _res << "\t\t\t- flow vector " << cnt << ": [" << dbuffer[off] << ", " << dbuffer[off+1] << ", " << dbuffer[off+2] << "]" << std::endl;
                 } // for t
             } // for y
         } // for x
@@ -1102,7 +1101,72 @@ bool ImporterScientific::read_landmark_measuring_planes(std::string_view filepat
         for (unsigned int i = 0; i < NUM_DEMO; ++i)
         { _res << dbuffer[i] << ", "; }
         _res << "..." << std::endl;
-    }; // saveMeasuringPlane()
+    }; // readMeasuringPlane()
+
+
+    if (!std::filesystem::exists(filepath.data()))
+    {
+        _res << "\t- vessel has no land marks of measuring planes (path \"" << filepath.data() << "\")" << std::endl;
+        _res.flush();
+        return false;
+    }
+
+    _res << "\t- reading land marks of measuring planes (path \"" << filepath.data() << "\")" << std::endl;
+
+    std::ifstream file(filepath.data(), std::ios_base::in | std::ios_base::binary);
+
+    if (!file.good())
+    {
+        _res << "\t\tFAILED! Could not open file!" << std::endl;
+        return false;
+    }
+
+    // num measuring planes
+    std::uint32_t numMeasuringPlanes = 0;
+    file.read(reinterpret_cast<char*>(&numMeasuringPlanes), sizeof(std::uint32_t));
+    std::cout << "\t\t- num. measuring planes: " << numMeasuringPlanes << std::endl;
+
+    // num measuring planes of land marks
+    std::uint32_t numMeasuringPlanesOfLandMarks = 0;
+    file.read(reinterpret_cast<char*>(&numMeasuringPlanesOfLandMarks), sizeof(std::uint32_t));
+    std::cout << "\t\t- num. measuring planes of landmarks: " << numMeasuringPlanesOfLandMarks << std::endl;
+
+    // measuring planes
+    for (unsigned int i = 0; i < numMeasuringPlanes; ++i)
+    {
+        std::cout << "\t\t- measuring plane " <<i<<": "<< std::endl;
+        readMeasuringPlane(file);
+    }
+
+    // measuring planes of land marks
+    for (unsigned int i = 0; i < numMeasuringPlanesOfLandMarks; ++i)
+    {
+        std::cout << "\t\t- measuring plane " <<i<<" of landmarks: "<< std::endl;
+
+        std::uint32_t semantic = 0;
+        file.read(reinterpret_cast<char*>(&semantic), sizeof(std::uint32_t));
+
+        std::cout << "\t\t\t- semantic: " << semantic << " (";
+        switch (semantic)
+        {
+            case 1: std::cout << "LandMarkSemantic_Aorta_AboveAorticValve"; break;
+            case 2: std::cout << "LandMarkSemantic_Aorta_MidAscendingAorta"; break;
+            case 3: std::cout << "LandMarkSemantic_Aorta_BeforeBrachiocephalicArtery"; break;
+            case 4: std::cout << "LandMarkSemantic_Aorta_BetweenLeftCommonCarotid_and_LeftSubclavianArtery"; break;
+            case 5: std::cout << "LandMarkSemantic_Aorta_DistalToLeftSubclavianArtery"; break;
+            case 6: std::cout << "LandMarkSemantic_Aorta_MidDescendingAorta"; break;
+            case 7: std::cout << "LandMarkSemantic_PulmonaryArtery_AbovePulmonaryValve"; break;
+            case 8: std::cout << "LandMarkSemantic_PulmonaryArtery_BeforeJunction"; break;
+            case 9: std::cout << "LandMarkSemantic_PulmonaryArtery_LeftPulmonaryArtery_Begin"; break;
+            case 10: std::cout << "LandMarkSemantic_PulmonaryArtery_RightPulmonaryArtery_Begin"; break;
+            default: std::cout << "None";
+        }
+        std::cout << ")" << std::endl;
+
+        readMeasuringPlane(file);
+    }
+
+    file.close();
 
     return true;
 }
@@ -1805,7 +1869,7 @@ bool ImporterScientific::read_anatomical_images()
     for (unsigned int i = 0; i < anatomicalImage3DNames.size(); ++i)
     {
         _res << anatomicalImage3DNames[i];
-        if (i < static_cast<int>(anatomicalImage3DNames.size()) - 1)
+        if (static_cast<int>(i) < static_cast<int>(anatomicalImage3DNames.size()) - 1)
         { _res << ", "; }
     }
     _res << std::endl;
@@ -1841,7 +1905,7 @@ bool ImporterScientific::read_anatomical_images()
     for (unsigned int i = 0; i < anatomicalImage3DTNames.size(); ++i)
     {
         _res << anatomicalImage3DTNames[i];
-        if (i < static_cast<int>(anatomicalImage3DTNames.size()) - 1)
+        if (static_cast<int>(i) < static_cast<int>(anatomicalImage3DTNames.size()) - 1)
         { _res << ", "; }
     }
     _res << std::endl;
@@ -1886,7 +1950,7 @@ bool ImporterScientific::read_flow2dt_images()
     for (unsigned int i = 0; i < flowImage2DTNames.size(); ++i)
     {
         _res << flowImage2DTNames[i];
-        if (i < static_cast<int>(flowImage2DTNames.size()) - 1)
+        if (static_cast<int>(i) < static_cast<int>(flowImage2DTNames.size()) - 1)
         { _res << ", "; }
     }
     _res << std::endl;
@@ -2484,7 +2548,7 @@ bool ImporterScientific::read_segmentation_graphcut_inside_outside_ids(std::stri
     for (unsigned int i = 0; i < std::min(NUM_DEMO, numOutsideIds); ++i)
     {
         const unsigned int off = i * 3;
-        _res << "\t\t- outside grid pos " << i << ": [" << ui32buffer[0] << ", " << ui32buffer[1] << ", " << ui32buffer[2] << "]" << std::endl;
+        _res << "\t\t- outside grid pos " << i << ": [" << ui32buffer[off] << ", " << ui32buffer[off+1] << ", " << ui32buffer[off+2] << "]" << std::endl;
     }
     if (numOutsideIds != 0)
     { _res << "\t\t- ..." << std::endl; }
@@ -2830,7 +2894,6 @@ bool ImporterScientific::read_velocity_offset_correction_3dt(std::string_view fi
         std::vector<double> buf(numSlices * 3);
         file.read(reinterpret_cast<char*>(buf.data()), buf.size() * sizeof(double));
 
-        unsigned int cnt = 0;
         for (unsigned int z = 0; z < NUM_DEMO/*numSlices*/; ++z)
         {
             const unsigned int off = 3 * z;
